@@ -50,6 +50,7 @@ def main():
     print_info("180 direction", direction)
     rounded = round_directions(direction)
     print_info("rounded", rounded)
+    print(validate_rounded_values(rounded))
 
     gmt = weak = strong = np.zeros_like(image)
 
@@ -81,7 +82,6 @@ def main():
 
             if mag >= ov1 and mag >= ov2:
                 gmt[y, x] = mag
-
     # Normalize again in case of overflow or values that don't reach the full range
     gmt = cv2.normalize(gmt, np.empty_like(gmt), 0, 256, cv2.NORM_MINMAX).astype(np.uint8)
 
@@ -142,8 +142,8 @@ def generate_guassian_kernel(size: int, sigma: int) -> np.ndarray:
 def print_info(title: str, arr: np.ndarray):
     print(title, arr.shape, np.max(arr), np.min(arr))
 
-def validate_rounded_values(rounded: ) {
+def validate_rounded_values(rounded: np.ndarray) -> bool:
+    return np.all(np.isin(rounded, [0, 45, 90, 135]))
 
-}
 if __name__ == "__main__":
     main()
