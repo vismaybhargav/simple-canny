@@ -1,11 +1,11 @@
 import cv2
 import numpy as np
 
-LOW_THRESH, HIGH_THRESH = 100, 200  # TODO: This needs to be tuned
+LOW_THRESH, HIGH_THRESH = 75, 200  # TODO: This needs to be tuned
 
 def main():
-    image = cv2.imread("img/monkey.jpg", cv2.IMREAD_GRAYSCALE)
-    hsv = cv2.cvtColor(cv2.imread("img/monkey.jpg"), cv2.COLOR_BGR2HSV)
+    image = cv2.imread("img/lizard.jpg", cv2.IMREAD_GRAYSCALE)
+    hsv = cv2.cvtColor(cv2.imread("img/lizard.jpg"), cv2.COLOR_BGR2HSV)
 
     H, W = image.shape
 
@@ -31,20 +31,20 @@ def main():
     gradient = np.hypot(gx, gy)
     print_info("gradient", gradient)
     gradient = cv2.normalize(gradient, np.empty_like(gradient), 0, 256, cv2.NORM_MINMAX).astype(np.uint8)
-    cv2.imshow("sobel", gradient)
+    # cv2.imshow("sobel", gradient)
 
     direction = np.degrees(np.atan2(gy, gx))
     print_info("direction", direction)
     direction = np.mod(direction + 360, 360)
     print_info("360 direction", direction)
 
-    for i in range(hsv.shape[0]):
-        for j in range(hsv.shape[1]):
+    for i in range(H):
+        for j in range(W):
             hsv[i, j][0] = (direction[i, j] / 2.0)
             hsv[i, j][1] = 255
             hsv[i, j][2] = 255
 
-    cv2.imshow("Direction", cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
+    # cv2.imshow("Direction", cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
 
     direction = np.mod(direction + 180, 180)
     print_info("180 direction", direction)
@@ -52,7 +52,10 @@ def main():
     print_info("rounded", rounded)
     print(validate_rounded_values(rounded))
 
-    gmt = weak = strong = np.zeros_like(image)
+    gmt = np.zeros_like(image)
+    weak = np.zeros_like(image)
+    strong = np.zeros_like(image)
+    thresh = np.zeros_like(image)
 
     # Ignore a 1 pixel border to make NOOB checks better
     # Double thresholding + GMT
@@ -75,33 +78,42 @@ def main():
                 case _:
                     raise ValueError("Invalid Angle in Direction array")
 
-            # if mag >= HIGH_THRESH:
-            #     strong[y, x] = mag
-            # elif HIGH_THRESH > mag >= LOW_THRESH:
-            #     weak[y, x] = mag
-
             if mag >= ov1 and mag >= ov2:
                 gmt[y, x] = mag
+
+    # Double thresholding
+    for y in range(H):
+        for x in range(W):
+            if gmt[y, x] >= HIGH_THRESH:
+                strong[y, x] = gmt[y, x]
+                thresh[y, x] = 255
+            elif gmt[y, x] >= LOW_THRESH:
+                weak[y, x] = gmt[y, x]
+                thresh[y, x] = 75
+            else:
+                thresh[y, x] = 0
+
+    # Hysteresis thresholding
+    hysteresis = thresh.copy()
+    for y in range(1, H - 1):
+        for x in range(1, W - 1):
+            for i in range(-1, 1):
+                for j in range(-1, 1):
+                    if (i != 0 or j != 0) and weak[y + i, x + j] > 0:
+                        hysteresis[y, x] = 255
+                        break
+
+
     # Normalize again in case of overflow or values that don't reach the full range
-    gmt = cv2.normalize(gmt, np.empty_like(gmt), 0, 256, cv2.NORM_MINMAX).astype(np.uint8)
+    # gmt = cv2.normalize(gmt, np.empty_like(gmt), 0, 256, cv2.NORM_MINMAX).astype(np.uint8)
 
-    hysteresis = np.copy(strong)
-
-    # for y in range(1, H - 1):
-    #     for x in range(1, W - 1):
-    #         if weak[y, x] > 0:
-    #             for dy in [-1, 0, 1]:
-    #                 for dx in [-1, 0, 1]:
-    #                     if dy == 0 and dx == 0:
-    #                         continue
-    #                     nx, ny = x + dx, y + dy
-    #                     if strong[ny, nx] > 0:
-    #                         hysteresis[y, x] = strong[ny, nx]
-    #                         break
-
-    cv2.imshow("Image", image)
-    cv2.imshow("Guassian", guass_image)
-    cv2.imshow("GMT", gmt)
+    # cv2.imshow("Image", image)
+    # cv2.imshow("Guassian", guass_image)
+    # cv2.imshow("GMT", gmt)
+    # cv2.imshow("Strong", strong)
+    # cv2.imshow("Weak", weak)
+    # cv2.imshow("Double Threshold", thresh)
+    cv2.imshow("Hysteresis", hysteresis)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
@@ -142,7 +154,7 @@ def generate_guassian_kernel(size: int, sigma: int) -> np.ndarray:
 def print_info(title: str, arr: np.ndarray):
     print(title, arr.shape, np.max(arr), np.min(arr))
 
-def validate_rounded_values(rounded: np.ndarray) -> bool:
+def validate_rounded_values(rounded: np.ndarray) -> np.bool:
     return np.all(np.isin(rounded, [0, 45, 90, 135]))
 
 if __name__ == "__main__":
